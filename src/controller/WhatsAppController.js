@@ -14,6 +14,7 @@ export default class WhatsAppController {
     constructor() {
         console.log('OK');
 
+        this._active = true;
         this._firebase = new Firebase();
         this.initAuth();
 
@@ -38,6 +39,38 @@ export default class WhatsAppController {
                 this.el.alertNotificationPermission.hide();
 
             }
+
+            this.el.alertNotificationPermission.on('click', e => {
+                Notification.requestPermission(permission => {
+
+                    if(permission === 'granted') {
+
+                        this.el.alertNotificationPermission.hide();
+                        console.info('notificações permitidas')
+
+                    }
+
+                });
+            });
+
+        }
+    }
+
+    notification(data) {
+        if(Notification.permission === 'granted' && !this._active) {
+            
+            let n = new Notification(this._contactActive.name, {
+                icon: this._contactActive.photo,
+                body: data.content
+            });
+
+            let sound = new Audio('./audio/alert.mp3');
+            sound.currentTime = 0;
+            sound.play();
+
+            setTimeout(() => {
+                if(n) n.close();
+            }, 3000)
 
         }
     }
@@ -122,7 +155,7 @@ export default class WhatsAppController {
                                 <span dir="auto" title="${contact.name}" class="_1wjpf">${contact.name}</span>
                             </div>
                             <div class="_3Bxar">
-                                <span class="_3T2VG">${Format.timeStampToTim(contact.lastMessageTime)}</span>
+                                <span class="_3T2VG">${Format.timeStampToTime(contact.lastMessageTime)}</span>
                             </div>
                         </div>
                         <div class="_1AwDx">
@@ -194,8 +227,10 @@ export default class WhatsAppController {
         this.el.main.css({
             display: 'flex'
         });
-
+        
         this.el.panelMessagesContainer.innerHTML = '';
+        
+        this._messagesReceived = [];
 
         Message.getRef(this._contactActive.chatId)
             .orderBy('timeStamp')
@@ -212,9 +247,17 @@ export default class WhatsAppController {
                     data.id = doc.id;
 
                     let message = new Message();
+                    
                     message.fromJSON(data);
 
                     let me = (data.from === this._user.email);
+
+                    if(!me && this._messagesReceived.filter(id => { return (id === data.id)}).length === 0){
+                        
+                        this.notification(data);
+                        this._messagesReceived.push(data.id);
+
+                    }
 
                     let view = message.getViewElement(me);
 
@@ -386,6 +429,14 @@ export default class WhatsAppController {
     }
 
     initEvents() {
+
+        window.addEventListener('focus', () => {
+            this._active = true;
+        })
+
+        window.addEventListener('blur', () => {
+            this._active = false;
+        })
 
         this.el.inputSearchContacts.on('keyup', e => {
             if (this.el.inputSearchContacts.value.length > 0) {
